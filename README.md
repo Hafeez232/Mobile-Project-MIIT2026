@@ -1,17 +1,31 @@
-# fine_dine
+# Fine-Dine
 
-A new Flutter project.
+Fine-Dine is a Flutter restaurant package booking app for guests, registered users, and admins. It supports package browsing, reservations, notifications, payment card storage, and admin management screens.
 
-## Getting Started
+## Features
 
-This project is a starting point for a Flutter application.
+- Guest package browsing with featured and category-based lists
+- User authentication with Firebase Auth
+- Firestore-backed reservations, user profiles, notifications, and payment cards
+- Supabase-powered restaurant menu/package data
+- Admin dashboard for managing users, reservations, and menu packages
+- Search, filtering, and detail pages across the app
+- Material 3 UI with custom theme, cards, buttons, and loading shimmers
 
-A few resources to get you started if this is your first Flutter project:
+### Prerequisites
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+- Flutter SDK installed
+- Firebase project configured
+- Supabase project configured
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+### Install Dependencies
+
+```bash
+flutter pub get
+```
+
+### Run the App
+
+```bash
+flutter run
+```
