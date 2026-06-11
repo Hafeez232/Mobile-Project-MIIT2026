@@ -10,8 +10,8 @@ class MenuPackage {
   final int minGuests;
   final int maxGuests;
   final bool isAvailable;
-  final int orderCount;      // kept as original
-  final int favoriteCount;   // added for Supabase view
+  final int orderCount;
+  final int favoriteCount;
   final DateTime createdAt;
 
   MenuPackage({
@@ -25,12 +25,11 @@ class MenuPackage {
     this.minGuests = 10,
     this.maxGuests = 200,
     this.isAvailable = true,
-    this.orderCount = 0,       // kept as original
+    this.orderCount = 0,
     this.favoriteCount = 0,
     required this.createdAt,
   });
 
-  // Original Firebase signature — kept so existing files don't break
   factory MenuPackage.fromMap(Map<String, dynamic> map, String id) {
     return MenuPackage(
       id: id,
@@ -51,9 +50,7 @@ class MenuPackage {
     );
   }
 
-  // Supabase-specific constructor — use this for Supabase calls
   factory MenuPackage.fromSupabase(Map<String, dynamic> map) {
-    // handle both single image_url and array image_urls
     List<String> imageUrls = [];
     if (map['image_urls'] != null) {
       imageUrls = List<String>.from(map['image_urls']);
@@ -66,7 +63,7 @@ class MenuPackage {
       name: map['name'] ?? '',
       description: map['description'] ?? '',
       pricePerGuest: (map['price'] ?? 0.0).toDouble(),
-      imageUrls: imageUrls,   // ← uses the fixed list above
+      imageUrls: imageUrls,
       includes: List<String>.from(map['includes'] ?? []),
       category: map['category'] ?? 'All',
       minGuests: map['min_guests'] ?? 10,
