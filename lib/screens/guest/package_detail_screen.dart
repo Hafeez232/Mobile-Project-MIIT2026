@@ -6,6 +6,7 @@ import '../../models/menu_package.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common_widgets.dart';
+import '../../services/menu_service_supabase.dart';
 
 class PackageDetailScreen extends StatefulWidget {
   final MenuPackage package;
@@ -20,7 +21,7 @@ class PackageDetailScreen extends StatefulWidget {
 
 class _PackageDetailScreenState extends State<PackageDetailScreen> {
   int _currentImage = 0;
-  final _db = FirestoreService();
+  final _menuService = MenuService();
 
   @override
   Widget build(BuildContext context) {
@@ -30,7 +31,6 @@ class _PackageDetailScreenState extends State<PackageDetailScreen> {
       backgroundColor: AppColors.background,
       body: CustomScrollView(
         slivers: [
-          // Image slider app bar
           SliverAppBar(
             expandedHeight: 280,
             pinned: true,
@@ -64,7 +64,6 @@ class _PackageDetailScreenState extends State<PackageDetailScreen> {
                       child: const Icon(Icons.restaurant_menu,
                           color: AppColors.secondary, size: 80),
                     ),
-                  // Page dots
                   if (pkg.imageUrls.length > 1)
                     Positioned(
                       bottom: 12,
@@ -217,7 +216,7 @@ class _PackageDetailScreenState extends State<PackageDetailScreen> {
                           color: AppColors.textDark)),
                   const SizedBox(height: 10),
                   FutureBuilder<List<MenuPackage>>(
-                    future: _db.getMostOrdered(),
+                    future: _menuService.getMostFavorited(),
                     builder: (ctx, snap) {
                       if (!snap.hasData) {
                         return const SizedBox(height: 100);

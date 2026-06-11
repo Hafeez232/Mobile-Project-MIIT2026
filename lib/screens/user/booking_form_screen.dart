@@ -1,5 +1,6 @@
 // lib/screens/user/booking_form_screen.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../models/menu_package.dart';
@@ -10,8 +11,13 @@ import '../../widgets/common_widgets.dart';
 
 class BookingFormScreen extends StatefulWidget {
   final MenuPackage package;
+  final Reservation? reservation;
 
-  const BookingFormScreen({super.key, required this.package});
+  const BookingFormScreen({
+    super.key,
+    required this.package,
+    this.reservation,
+  });
 
   @override
   State<BookingFormScreen> createState() => _BookingFormScreenState();
@@ -21,6 +27,7 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
   int _numGuests = 10;
   DateTime _selectedDate = DateTime.now().add(const Duration(days: 7));
   TimeOfDay _selectedTime = const TimeOfDay(hour: 19, minute: 0);
+  late final TextEditingController _guestCtrl;
   final _notesCtrl = TextEditingController();
   final _auth = AuthService();
 
@@ -46,16 +53,65 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
   double get _totalPrice => _basePrice + _customizationTotal;
 
   @override
+  void initState() {
+    super.initState();
+    _guestCtrl = TextEditingController(text: '$_numGuests');
+    final reservation = widget.reservation;
+    if (reservation == null) return;
+
+    _numGuests = reservation.numGuests;
+    _guestCtrl.text = '$_numGuests';
+    _selectedDate = reservation.eventDate;
+    final timeParts = reservation.eventTime.split(':');
+    if (timeParts.length == 2) {
+      _selectedTime = TimeOfDay(
+        hour: int.tryParse(timeParts[0]) ?? _selectedTime.hour,
+        minute: int.tryParse(timeParts[1]) ?? _selectedTime.minute,
+      );
+    }
+    _notesCtrl.text = reservation.additionalPreferences ?? '';
+    for (final custom in reservation.customizations) {
+      final index = _availableCustomizations
+          .indexWhere((item) => item['name'] == custom.name);
+      if (index != -1) _selectedCustomizations.add(index);
+    }
+  }
+
+  @override
   void dispose() {
+    _guestCtrl.dispose();
     _notesCtrl.dispose();
     super.dispose();
   }
 
+  void _setGuestCount(int value) {
+    final clamped = value.clamp(
+      widget.package.minGuests,
+      widget.package.maxGuests,
+    ) as int;
+    setState(() {
+      _numGuests = clamped;
+      _guestCtrl.text = '$_numGuests';
+      _guestCtrl.selection = TextSelection.fromPosition(
+        TextPosition(offset: _guestCtrl.text.length),
+      );
+    });
+  }
+
+  void _syncGuestInput() {
+    final value = int.tryParse(_guestCtrl.text);
+    if (value == null) return;
+    _setGuestCount(value);
+  }
+
   Future<void> _pickDate() async {
+    final tomorrow = DateTime.now().add(const Duration(days: 1));
+    final firstDate =
+        _selectedDate.isBefore(tomorrow) ? _selectedDate : tomorrow;
     final d = await showDatePicker(
       context: context,
       initialDate: _selectedDate,
-      firstDate: DateTime.now().add(const Duration(days: 1)),
+      firstDate: firstDate,
       lastDate: DateTime.now().add(const Duration(days: 365)),
       builder: (ctx, child) => Theme(
         data: Theme.of(ctx).copyWith(
@@ -88,6 +144,14 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
   }
 
   Future<void> _reviewReservation() async {
+    _syncGuestInput();
+    if (_guestCtrl.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Please enter the number of guests.'),
+        backgroundColor: AppColors.error,
+      ));
+      return;
+    }
     if (_numGuests < widget.package.minGuests) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(
@@ -114,7 +178,7 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
         '${_selectedTime.hour.toString().padLeft(2, '0')}:${_selectedTime.minute.toString().padLeft(2, '0')}';
 
     final reservation = Reservation(
-      id: '',
+      id: widget.reservation?.id ?? '',
       userId: user.uid,
       userName: user.name,
       userEmail: user.email,
@@ -131,7 +195,10 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
       additionalPreferences: _notesCtrl.text.trim(),
       customizations: selectedCustoms,
       totalPrice: _totalPrice,
-      createdAt: DateTime.now(),
+      status: widget.reservation?.status ?? ReservationStatus.upcoming,
+      rating: widget.reservation?.rating,
+      createdAt: widget.reservation?.createdAt ?? DateTime.now(),
+      updatedAt: widget.reservation == null ? null : DateTime.now(),
     );
 
     context.push('/home/confirm', extra: {
@@ -200,24 +267,37 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
                 IconButton(
                   onPressed: () {
                     if (_numGuests > widget.package.minGuests) {
-                      setState(() => _numGuests--);
+                      _setGuestCount(_numGuests - 1);
                     }
                   },
                   icon: const Icon(Icons.remove_circle_outline,
                       color: AppColors.primary),
                 ),
                 Expanded(
-                  child: Text(
-                    '$_numGuests',
+                  child: TextField(
+                    controller: _guestCtrl,
                     textAlign: TextAlign.center,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                    ],
+                    onSubmitted: (_) => _syncGuestInput(),
+                    onEditingComplete: _syncGuestInput,
+                    decoration: const InputDecoration(
+                      border: InputBorder.none,
+                      filled: false,
+                      contentPadding: EdgeInsets.zero,
+                    ),
                     style: const TextStyle(
-                        fontSize: 20, fontWeight: FontWeight.w700),
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
                 IconButton(
                   onPressed: () {
                     if (_numGuests < widget.package.maxGuests) {
-                      setState(() => _numGuests++);
+                      _setGuestCount(_numGuests + 1);
                     }
                   },
                   icon: const Icon(Icons.add_circle_outline,

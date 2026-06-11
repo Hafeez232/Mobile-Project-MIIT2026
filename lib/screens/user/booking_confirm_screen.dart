@@ -3,12 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:intl/intl.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../../models/bank_card.dart';
 import '../../models/menu_package.dart';
 import '../../models/reservation.dart';
 import '../../services/firestore_service.dart';
-import '../../services/auth_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common_widgets.dart';
+import 'payment_cards_screen.dart';
 
 class BookingConfirmScreen extends StatefulWidget {
   final MenuPackage package;
@@ -23,12 +25,26 @@ class BookingConfirmScreen extends StatefulWidget {
 
 class _BookingConfirmScreenState extends State<BookingConfirmScreen> {
   bool _isLoading = false;
+  BankCard? _selectedCard;
   final _db = FirestoreService();
+  final _uid = FirebaseAuth.instance.currentUser?.uid ?? '';
 
   Future<void> _confirm() async {
+    if (_selectedCard == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Please choose or add a bank card first'),
+        backgroundColor: AppColors.error,
+      ));
+      return;
+    }
+
     setState(() => _isLoading = true);
     try {
-      await _db.createReservation(widget.reservation);
+      if (widget.reservation.id.isEmpty) {
+        await _db.createReservation(widget.reservation);
+      } else {
+        await _db.updateReservation(widget.reservation);
+      }
       if (!mounted) return;
       context.go('/home/success');
     } catch (e) {
@@ -188,28 +204,7 @@ class _BookingConfirmScreenState extends State<BookingConfirmScreen> {
           ),
           const SizedBox(height: 16),
 
-          // Contact info
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(children: [
-              const Icon(Icons.payment_outlined,
-                  color: AppColors.textMedium),
-              const SizedBox(width: 10),
-              Text(
-                  '${res.userPhone.replaceRange(3, 9, 'xxxxxxx')}',
-                  style: const TextStyle(color: AppColors.textMedium)),
-              const Spacer(),
-              Text(
-                  'RM ${res.totalPrice.toStringAsFixed(2)}',
-                  style: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textDark)),
-            ]),
-          ),
+          _paymentCardSection(res),
           const SizedBox(height: 24),
 
           GoldButton(
@@ -242,8 +237,101 @@ class _BookingConfirmScreenState extends State<BookingConfirmScreen> {
         Text(value,
             style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
       ]);
+
+  Widget _paymentCardSection(Reservation res) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: StreamBuilder<List<BankCard>>(
+        stream: _db.bankCardsStream(_uid),
+        builder: (context, snap) {
+          final cards = snap.data ?? [];
+          if (_selectedCard == null && cards.isNotEmpty) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted && _selectedCard == null) {
+                setState(() => _selectedCard = cards.first);
+              }
+            });
+          }
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.payment_outlined,
+                      color: AppColors.textMedium),
+                  const SizedBox(width: 8),
+                  const Text('Payment card',
+                      style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textDark)),
+                  const Spacer(),
+                  Text('RM ${res.totalPrice.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textDark)),
+                ],
+              ),
+              const SizedBox(height: 12),
+              if (snap.connectionState == ConnectionState.waiting)
+                const Center(child: CircularProgressIndicator())
+              else if (cards.isEmpty)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Text('No card saved yet.',
+                        style: TextStyle(
+                            fontSize: 13, color: AppColors.textMedium)),
+                    const SizedBox(height: 10),
+                    OutlinedButton.icon(
+                      onPressed: _addCard,
+                      icon: const Icon(Icons.add_card),
+                      label: const Text('Add Bank Card'),
+                    ),
+                  ],
+                )
+              else ...[
+                ...cards.map((card) => Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: InkWell(
+                        onTap: () => setState(() => _selectedCard = card),
+                        borderRadius: BorderRadius.circular(10),
+                        child: BankCardTile(
+                          card: card,
+                          selected: _selectedCard?.id == card.id,
+                          trailing: Radio<String>(
+                            value: card.id,
+                            groupValue: _selectedCard?.id,
+                            onChanged: (_) =>
+                                setState(() => _selectedCard = card),
+                          ),
+                        ),
+                      ),
+                    )),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: _addCard,
+                    icon: const Icon(Icons.add),
+                    label: const Text('Use another card'),
+                  ),
+                ),
+              ],
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _addCard() async {
+    final card = await showAddBankCardDialog(context);
+    if (card != null && mounted) {
+      setState(() => _selectedCard = null);
+    }
+  }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-
-// lib/screens/user/booking_success_screen.dart

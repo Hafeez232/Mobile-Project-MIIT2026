@@ -1,13 +1,13 @@
 // lib/services/firestore_service.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../models/app_notification.dart';
+import '../models/bank_card.dart';
 import '../models/menu_package.dart';
 import '../models/reservation.dart';
 import '../models/user_model.dart';
 
 class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
-
-  // ─── MENU PACKAGES ──────────────────────────────────────────────────────────
 
   Stream<List<MenuPackage>> packagesStream({String? category}) {
     Query query = _db
@@ -84,14 +84,23 @@ class FirestoreService {
         .toList();
   }
 
-  // ─── RESERVATIONS ────────────────────────────────────────────────────────────
-
+  // Reservation images fetched from Supabase
   Future<String> createReservation(Reservation res) async {
     final ref = await _db.collection('reservations').add(res.toMap());
-    // Increment package order count
-    await _db.collection('packages').doc(res.packageId).update({
-      'orderCount': FieldValue.increment(1),
-    });
+    final packageRef = _db.collection('packages').doc(res.packageId);
+    final packageDoc = await packageRef.get();
+    if (packageDoc.exists) {
+      await packageRef.update({
+        'orderCount': FieldValue.increment(1),
+      });
+    }
+    await _createNotification(
+      userId: res.userId,
+      title: 'Reservation booked',
+      message: '${res.packageName} has been booked for ${_formatDate(res.eventDate)}.',
+      type: 'booked',
+      reservationId: ref.id,
+    );
     return ref.id;
   }
 
@@ -100,12 +109,15 @@ class FirestoreService {
     return _db
         .collection('reservations')
         .where('userId', isEqualTo: userId)
-        .orderBy('eventDate', descending: true)
         .snapshots()
-        .map((snap) => snap.docs
-            .map((d) =>
-                Reservation.fromMap(d.data() as Map<String, dynamic>, d.id))
-            .toList());
+        .map((snap) {
+      final reservations = snap.docs
+          .map((d) =>
+              Reservation.fromMap(d.data() as Map<String, dynamic>, d.id))
+          .toList();
+      reservations.sort((a, b) => b.eventDate.compareTo(a.eventDate));
+      return reservations;
+    });
   }
 
   // All reservations (admin)
@@ -134,30 +146,52 @@ class FirestoreService {
       'pricePerGuest': res.pricePerGuest,
       'updatedAt': FieldValue.serverTimestamp(),
     });
+    await _createNotification(
+      userId: res.userId,
+      title: 'Reservation edited',
+      message: '${res.packageName} was updated for ${_formatDate(res.eventDate)}.',
+      type: 'edited',
+      reservationId: res.id,
+    );
   }
 
   Future<void> cancelReservation(String id) async {
+    final doc = await _db.collection('reservations').doc(id).get();
+    final res = doc.exists
+        ? Reservation.fromMap(doc.data() as Map<String, dynamic>, doc.id)
+        : null;
     await _db.collection('reservations').doc(id).update({
       'status': 'cancelled',
       'updatedAt': FieldValue.serverTimestamp(),
     });
+    if (res != null) {
+      await _createNotification(
+        userId: res.userId,
+        title: 'Reservation cancelled',
+        message: '${res.packageName} on ${_formatDate(res.eventDate)} was cancelled.',
+        type: 'cancelled',
+        reservationId: id,
+      );
+    }
   }
 
   Future<void> rateReservation(String id, double rating) async {
     await _db.collection('reservations').doc(id).update({'rating': rating});
   }
 
-  // ─── USERS (admin) ───────────────────────────────────────────────────────────
-
+  // Users (in admin)
   Stream<List<UserModel>> usersStream() {
     return _db
         .collection('users')
         .where('role', isEqualTo: 'user')
-        .orderBy('createdAt', descending: true)
         .snapshots()
-        .map((snap) => snap.docs
-            .map((d) => UserModel.fromMap(d.data() as Map<String, dynamic>, d.id))
-            .toList());
+        .map((snap) {
+      final users = snap.docs
+          .map((d) => UserModel.fromMap(d.data() as Map<String, dynamic>, d.id))
+          .toList();
+      users.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return users;
+    });
   }
 
   Future<void> updateUserByAdmin(String uid, Map<String, dynamic> data) async {
@@ -167,4 +201,93 @@ class FirestoreService {
   Future<void> deleteUser(String uid) async {
     await _db.collection('users').doc(uid).delete();
   }
+
+  Stream<List<BankCard>> bankCardsStream(String userId) {
+    return _db
+        .collection('users')
+        .doc(userId)
+        .collection('paymentCards')
+        .snapshots()
+        .map((snap) {
+      final cards = snap.docs
+          .map((d) => BankCard.fromMap(d.data(), d.id))
+          .toList();
+      cards.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return cards;
+    });
+  }
+
+  Future<void> addBankCard(BankCard card) async {
+    final cardRef = _db
+        .collection('users')
+        .doc(card.userId)
+        .collection('paymentCards')
+        .doc();
+
+    await cardRef.set(card.toMap());
+
+    final savedCard = await cardRef.get(const GetOptions(source: Source.server));
+    if (!savedCard.exists) {
+      throw Exception('Card was saved locally but not confirmed on Firestore.');
+    }
+  }
+
+  Future<void> deleteBankCard(String userId, String cardId) async {
+    await _db
+        .collection('users')
+        .doc(userId)
+        .collection('paymentCards')
+        .doc(cardId)
+        .delete();
+  }
+
+  Stream<List<AppNotification>> notificationsStream(String userId) {
+    return _db
+        .collection('notifications')
+        .where('userId', isEqualTo: userId)
+        .snapshots()
+        .map((snap) {
+      final notifications = snap.docs
+          .map((d) => AppNotification.fromMap(d.data(), d.id))
+          .toList();
+      notifications.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return notifications;
+    });
+  }
+
+  Future<void> markNotificationsRead(String userId) async {
+    final snap = await _db
+        .collection('notifications')
+        .where('userId', isEqualTo: userId)
+        .get();
+
+    final batch = _db.batch();
+    for (final doc in snap.docs) {
+      if (doc.data()['isRead'] == false) {
+        batch.update(doc.reference, {'isRead': true});
+      }
+    }
+    await batch.commit();
+  }
+
+  Future<void> _createNotification({
+    required String userId,
+    required String title,
+    required String message,
+    required String type,
+    String? reservationId,
+  }) async {
+    await _db.collection('notifications').add(AppNotification(
+          id: '',
+          userId: userId,
+          title: title,
+          message: message,
+          type: type,
+          reservationId: reservationId,
+          createdAt: DateTime.now(),
+        ).toMap());
+  }
+
+  String _formatDate(DateTime date) =>
+      '${date.day}/${date.month}/${date.year}';
 }

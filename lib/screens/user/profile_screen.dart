@@ -9,7 +9,9 @@ import '../../models/menu_package.dart';
 import '../../widgets/common_widgets.dart';
 
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({super.key});
+  final VoidCallback? onOpenReservations;
+
+  const ProfileScreen({super.key, this.onOpenReservations});
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -103,7 +105,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     // Menu items
                     _menuItem(Icons.calendar_today_outlined,
                         'My Reservations', () {
-                      context.push('/home/reservations');
+                      final onOpenReservations = widget.onOpenReservations;
+                      if (onOpenReservations != null) {
+                        onOpenReservations();
+                      } else {
+                        context.push('/home/reservations');
+                      }
+                    }),
+                    const SizedBox(height: 8),
+                    _menuItem(Icons.credit_card,
+                        'Bank Card Payment', () {
+                      context.push('/home/payment-cards');
                     }),
                     const SizedBox(height: 8),
                     _menuItem(
@@ -155,8 +167,4 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
       );
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-
-// lib/screens/user/search_screen.dart
 

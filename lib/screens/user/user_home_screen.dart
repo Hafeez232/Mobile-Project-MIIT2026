@@ -9,29 +9,51 @@ import '../../theme/app_theme.dart';
 import '../../widgets/common_widgets.dart';
 import '../user/profile_screen.dart';
 import '../user/my_reservations_screen.dart';
+import '../user/notifications_screen.dart';
+import '../../services/menu_service_supabase.dart';
 
 class UserHomeScreen extends StatefulWidget {
-  const UserHomeScreen({super.key});
+  final int initialIndex;
+
+  const UserHomeScreen({super.key, this.initialIndex = 0});
 
   @override
   State<UserHomeScreen> createState() => _UserHomeScreenState();
 }
 
 class _UserHomeScreenState extends State<UserHomeScreen> {
-  int _navIndex = 0;
+  late int _navIndex;
   final _db = FirestoreService();
   final _auth = AuthService();
   String _selectedCategory = 'All';
   final _categories = ['All', 'Western', 'Asian', 'Fusion', 'Local'];
 
-  final _pages = const [_HomeTab(), _ReservationsTab(), _ProfileTab()];
+  @override
+  void initState() {
+    super.initState();
+    _navIndex = widget.initialIndex;
+  }
+
+  @override
+  void didUpdateWidget(covariant UserHomeScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialIndex != widget.initialIndex) {
+      _navIndex = widget.initialIndex;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final pages = [
+      const _HomeTab(),
+      _ReservationsTab(onBrowsePackages: () => setState(() => _navIndex = 0)),
+      _ProfileTab(onOpenReservations: () => setState(() => _navIndex = 1)),
+    ];
+
     return Scaffold(
       body: IndexedStack(
         index: _navIndex,
-        children: _pages,
+        children: pages,
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _navIndex,
@@ -55,8 +77,6 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
   }
 }
 
-// ─── Home Tab ──────────────────────────────────────────────────────────────
-
 class _HomeTab extends StatefulWidget {
   const _HomeTab();
 
@@ -64,10 +84,59 @@ class _HomeTab extends StatefulWidget {
   State<_HomeTab> createState() => _HomeTabState();
 }
 
-class _HomeTabState extends State<_HomeTab> {
-  final _db = FirestoreService();
+class _HomeTabState extends State<_HomeTab>
+    with WidgetsBindingObserver {
+  final _menuService = MenuService();
   String _selectedCategory = 'All';
   final _categories = ['All', 'Western', 'Asian', 'Fusion', 'Local'];
+
+  List<MenuPackage> _mostOrdered = [];
+  List<MenuPackage> _menuItems = [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _loadPackages();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _loadPackages();
+  }
+
+  Future<void> _loadPackages() async {
+    try {
+      final results = await Future.wait([
+        _menuService.getMostFavorited(),
+        _menuService.getMenuItems(
+            category: _selectedCategory == 'All' ? null : _selectedCategory),
+      ]);
+      if (mounted) {
+        setState(() {
+          _mostOrdered = results[0];
+          _menuItems = results[1];
+          _loading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  void _onCategoryChanged(String cat) async {
+    setState(() => _selectedCategory = cat);
+    final items = await _menuService.getMenuItems(
+        category: cat == 'All' ? null : cat);
+    if (mounted) setState(() => _menuItems = items);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -84,7 +153,7 @@ class _HomeTabState extends State<_HomeTab> {
         actions: [
           IconButton(
             icon: const Icon(Icons.notifications_outlined),
-            onPressed: () {},
+            onPressed: () => showNotificationsPanel(context),
           ),
           IconButton(
             icon: const Icon(Icons.search),
@@ -106,7 +175,7 @@ class _HomeTabState extends State<_HomeTab> {
                 final cat = _categories[i];
                 final selected = cat == _selectedCategory;
                 return GestureDetector(
-                  onTap: () => setState(() => _selectedCategory = cat),
+                  onTap: () => _onCategoryChanged(cat),
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 200),
                     margin: const EdgeInsets.only(right: 8),
@@ -153,64 +222,58 @@ class _HomeTabState extends State<_HomeTab> {
             ),
           ),
           const SizedBox(height: 8),
-          FutureBuilder<List<MenuPackage>>(
-            future: _db.getMostOrdered(),
-            builder: (ctx, snap) {
-              if (!snap.hasData) {
-                return SizedBox(
-                  height: 110,
-                  child: Shimmer.fromColors(
-                    baseColor: AppColors.shimmerBase,
-                    highlightColor: AppColors.shimmerHighlight,
-                    child: Row(
-                      children: List.generate(
-                          3,
-                          (_) => Container(
-                              margin: const EdgeInsets.only(left: 16),
-                              width: 100,
-                              height: 100,
-                              decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(10)))),
-                    ),
-                  ),
-                );
-              }
-              return SizedBox(
-                height: 110,
-                child: ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemCount: snap.data!.length,
-                  itemBuilder: (ctx, i) {
-                    final pkg = snap.data![i];
-                    return GestureDetector(
-                      onTap: () => context.push(
-                          '/home/package/${pkg.id}',
-                          extra: pkg),
-                      child: Container(
-                        width: 105,
-                        margin: const EdgeInsets.only(right: 10),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(10),
-                          image: pkg.imageUrls.isNotEmpty
-                              ? DecorationImage(
-                                  image: NetworkImage(pkg.imageUrls.first),
-                                  fit: BoxFit.cover)
-                              : null,
-                          color: AppColors.shimmerBase,
-                        ),
-                        child: pkg.imageUrls.isEmpty
-                            ? const Icon(Icons.restaurant,
-                                color: Colors.white54)
-                            : null,
-                      ),
-                    );
-                  },
+          if (_loading)
+            SizedBox(
+              height: 110,
+              child: Shimmer.fromColors(
+                baseColor: AppColors.shimmerBase,
+                highlightColor: AppColors.shimmerHighlight,
+                child: Row(
+                  children: List.generate(
+                      3,
+                      (_) => Container(
+                          margin: const EdgeInsets.only(left: 16),
+                          width: 100,
+                          height: 100,
+                          decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(10)))),
                 ),
-              );
-            },
-          ),
+              ),
+            )
+          else
+            SizedBox(
+              height: 110,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: _mostOrdered.length,
+                itemBuilder: (ctx, i) {
+                  final pkg = _mostOrdered[i];
+                  return GestureDetector(
+                    onTap: () => context.push(
+                        '/home/package/${pkg.id}',
+                        extra: pkg),
+                    child: Container(
+                      width: 105,
+                      margin: const EdgeInsets.only(right: 10),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(10),
+                        image: pkg.imageUrls.isNotEmpty
+                            ? DecorationImage(
+                                image: NetworkImage(pkg.imageUrls.first),
+                                fit: BoxFit.cover)
+                            : null,
+                        color: AppColors.shimmerBase,
+                      ),
+                      child: pkg.imageUrls.isEmpty
+                          ? const Icon(Icons.restaurant, color: Colors.white54)
+                          : null,
+                    ),
+                  );
+                },
+              ),
+            ),
           const SizedBox(height: 16),
 
           // Menu label
@@ -228,45 +291,36 @@ class _HomeTabState extends State<_HomeTab> {
 
           // Package grid
           Expanded(
-            child: StreamBuilder<List<MenuPackage>>(
-              stream: _db.packagesStream(
-                  category: _selectedCategory == 'All'
-                      ? null
-                      : _selectedCategory),
-              builder: (ctx, snap) {
-                if (snap.connectionState == ConnectionState.waiting) {
-                  return const Padding(
-                      padding: EdgeInsets.all(16),
-                      child: ShimmerList(count: 3));
-                }
-                if (!snap.hasData || snap.data!.isEmpty) {
-                  return const Center(
-                      child: Text('No packages available',
-                          style: TextStyle(color: AppColors.textLight)));
-                }
-                final packages = snap.data!;
-                return GridView.builder(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  gridDelegate:
-                      const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    childAspectRatio: 0.78,
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
-                  ),
-                  itemCount: packages.length,
-                  itemBuilder: (ctx, i) => PackageCard(
-                    package: packages[i],
-                    onTap: () => context.push(
-                        '/home/package/${packages[i].id}',
-                        extra: packages[i]),
-                    onAdd: () => context.push('/home/book',
-                        extra: packages[i]),
-                    showAdd: true,
-                  ),
-                );
-              },
-            ),
+            child: _loading
+                ? const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: ShimmerList(count: 3))
+                : _menuItems.isEmpty
+                    ? const Center(
+                        child: Text('No packages available',
+                            style: TextStyle(color: AppColors.textLight)))
+                    : RefreshIndicator(
+                        onRefresh: _loadPackages,
+                        child: GridView.builder(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            childAspectRatio: 0.65,
+                            crossAxisSpacing: 12,
+                            mainAxisSpacing: 12,
+                          ),
+                          itemCount: _menuItems.length,
+                          itemBuilder: (ctx, i) => PackageCard(
+                            package: _menuItems[i],
+                            onTap: () => context.push('/home/package/${_menuItems[i].id}',
+                                extra: _menuItems[i]),
+                            onAdd: () => context.push('/home/book',
+                                extra: _menuItems[i]),
+                            showAdd: true,
+                          ),
+                        ),
+                      ),
           ),
         ],
       ),
@@ -274,26 +328,24 @@ class _HomeTabState extends State<_HomeTab> {
   }
 }
 
-// ─── Reservations Tab (quick view) ────────────────────────────────────────
-
 class _ReservationsTab extends StatelessWidget {
-  const _ReservationsTab();
+  final VoidCallback onBrowsePackages;
+
+  const _ReservationsTab({required this.onBrowsePackages});
 
   @override
   Widget build(BuildContext context) {
-    return const MyReservationsScreen();
+    return MyReservationsScreen(onBrowsePackages: onBrowsePackages);
   }
 }
-
-// ─── Profile Tab ──────────────────────────────────────────────────────────
 
 class _ProfileTab extends StatelessWidget {
-  const _ProfileTab();
+  final VoidCallback onOpenReservations;
+
+  const _ProfileTab({required this.onOpenReservations});
 
   @override
   Widget build(BuildContext context) {
-    return const ProfileScreen();
+    return ProfileScreen(onOpenReservations: onOpenReservations);
   }
 }
-
-// Imports needed — these are inline to avoid circular import issues

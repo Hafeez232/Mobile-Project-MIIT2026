@@ -2,13 +2,17 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../../models/menu_package.dart';
 import '../../models/reservation.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common_widgets.dart';
+import 'notifications_screen.dart';
 
 class MyReservationsScreen extends StatelessWidget {
-  const MyReservationsScreen({super.key});
+  final VoidCallback? onBrowsePackages;
+
+  const MyReservationsScreen({super.key, this.onBrowsePackages});
 
   @override
   Widget build(BuildContext context) {
@@ -17,33 +21,81 @@ class MyReservationsScreen extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(title: const Text('My Reservations')),
+      appBar: AppBar(
+        title: const Row(
+          children: [
+            Icon(Icons.restaurant_menu, color: AppColors.secondary, size: 22),
+            SizedBox(width: 8),
+            Text('Fine-Dine'),
+          ],
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.notifications_outlined),
+            onPressed: () => showNotificationsPanel(context),
+          ),
+          IconButton(
+            icon: const Icon(Icons.search),
+            onPressed: () => context.push('/home/search'),
+          ),
+        ],
+      ),
       body: StreamBuilder<List<Reservation>>(
         stream: db.userReservationsStream(uid),
         builder: (ctx, snap) {
+          final pageTitle = const Text('My Reservation',
+              style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 24,
+                  color: AppColors.textDark));
+          final upcomingTitle = const Text('Upcoming reservations',
+              style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 15,
+                  color: AppColors.textDark));
+
           if (snap.connectionState == ConnectionState.waiting) {
-            return const Padding(
-                padding: EdgeInsets.all(16),
-                child: ShimmerList(count: 4));
+            return ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                pageTitle,
+                const SizedBox(height: 18),
+                upcomingTitle,
+                const SizedBox(height: 10),
+                const ShimmerList(count: 4),
+              ],
+            );
           }
           if (!snap.hasData || snap.data!.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.calendar_today_outlined,
-                      size: 56, color: AppColors.textLight),
-                  const SizedBox(height: 12),
-                  const Text('No reservations yet',
-                      style: TextStyle(
-                          color: AppColors.textLight, fontSize: 16)),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () => context.go('/home'),
-                    child: const Text('Browse Packages'),
+            return ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                pageTitle,
+                const SizedBox(height: 18),
+                upcomingTitle,
+                const SizedBox(height: 120),
+                Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.calendar_today_outlined,
+                          size: 56, color: AppColors.textLight),
+                      const SizedBox(height: 12),
+                      const Text('No reservations yet',
+                          style: TextStyle(
+                              color: AppColors.textLight, fontSize: 16)),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: onBrowsePackages ??
+                            () {
+                              context.go('/home?tab=home');
+                            },
+                        child: const Text('Browse Packages'),
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+              ],
             );
           }
 
@@ -57,21 +109,25 @@ class MyReservationsScreen extends StatelessWidget {
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              if (upcoming.isNotEmpty) ...[
-                const Text('Upcoming reservations',
-                    style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 15,
-                        color: AppColors.textDark)),
-                const SizedBox(height: 10),
+              pageTitle,
+              const SizedBox(height: 18),
+              upcomingTitle,
+              const SizedBox(height: 10),
+              if (upcoming.isNotEmpty)
                 ...upcoming.map((r) => ReservationCard(
                       reservation: r,
                       onTap: () => context.push(
                           '/home/reservations/${r.id}',
                           extra: r),
-                    )),
-                const SizedBox(height: 16),
-              ],
+                    ))
+              else
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 16),
+                  child: Text('No upcoming reservations',
+                      style: TextStyle(
+                          color: AppColors.textLight, fontSize: 13)),
+                ),
+              const SizedBox(height: 16),
               if (past.isNotEmpty) ...[
                 const Text('Past reservations',
                     style: TextStyle(
@@ -94,9 +150,6 @@ class MyReservationsScreen extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-
-// lib/screens/user/reservation_detail_screen.dart
 class ReservationDetailScreen extends StatefulWidget {
   final Reservation reservation;
 
@@ -175,10 +228,21 @@ class _ReservationDetailScreenState
             ? [
                 TextButton.icon(
                   onPressed: () async {
-                    // Navigate to edit form
-                    context.push('/home/book', extra:
-                        // Pass a flag to indicate edit mode
-                        null);
+                    final package = MenuPackage(
+                      id: _res.packageId,
+                      name: _res.packageName,
+                      description: '',
+                      pricePerGuest: _res.pricePerGuest,
+                      imageUrls: _res.packageImageUrl.isNotEmpty
+                          ? [_res.packageImageUrl]
+                          : const [],
+                      includes: const [],
+                      createdAt: _res.createdAt,
+                    );
+                    context.push('/home/book', extra: {
+                      'package': package,
+                      'reservation': _res,
+                    });
                   },
                   icon: const Icon(Icons.edit_outlined,
                       color: Colors.white, size: 18),

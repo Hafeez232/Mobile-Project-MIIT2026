@@ -1,1 +1,36 @@
-{"flutter":{"platforms":{"dart":{"lib/firebase_options.dart":{"projectId":"restaurant-package-booking","configurations":{"android":"1:750673553632:android:78abd76db5619157138885","web":"1:750673553632:web:e710f5045143720e138885"}}},"android":{"default":{"projectId":"restaurant-package-booking","appId":"1:750673553632:android:78abd76db5619157138885","fileOutput":"android/app/google-services.json"}}}},"hosting":{"public":"build/web","ignore":["firebase.json","**/.*","**/node_modules/**"],"rewrites":[{"source":"**","destination":"/index.html"}]}}
+{
+  "flutter": {
+    "platforms": {
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "restaurant-package-booking",
+          "configurations": {
+            "android": "1:750673553632:android:78abd76db5619157138885",
+            "web": "1:750673553632:web:e710f5045143720e138885"
+          }
+        }
+      },
+      "android": {
+        "default": {
+          "projectId": "restaurant-package-booking",
+          "appId": "1:750673553632:android:78abd76db5619157138885",
+          "fileOutput": "android/app/google-services.json"
+        }
+      }
+    }
+  },
+  "hosting": {
+    "public": "build/web",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}

@@ -109,6 +109,37 @@ class PackageCard extends StatelessWidget {
                 ],
               ),
             ),
+
+            //Mission abort for this
+            /*Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,    // ← add this
+              children: [
+                Text(
+                  package.name,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                    color: AppColors.textDark,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'RM ${package.pricePerGuest.toStringAsFixed(0)}/pax',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.secondary,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),*/
+
           ],
         ),
       ),
@@ -126,8 +157,6 @@ class PackageCard extends StatelessWidget {
         child: const Icon(Icons.restaurant, color: Colors.white54, size: 48),
       );
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
 
 class ReservationCard extends StatelessWidget {
   final dynamic reservation;
@@ -230,8 +259,6 @@ class ReservationCard extends StatelessWidget {
   String _formatDate(DateTime d) =>
       '${d.day}/${d.month}/${d.year}';
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
 
 class GoldButton extends StatelessWidget {
   final String text;

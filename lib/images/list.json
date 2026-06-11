@@ -1,0 +1,16 @@
+[
+  {
+    "image": "assets/images/burger.png",
+    "phrase": "Delicious Burger"
+  },
+
+  {
+    "image": "assets/images/pizza.png",
+    "phrase": "Cheesy Pizza"
+  },
+
+  {
+    "image": "assets/images/drink.png",
+    "phrase": "Cold Fresh Drink"
+  }
+]

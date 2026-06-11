@@ -72,6 +72,44 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                       padding: EdgeInsets.all(16),
                       child: ShimmerList(count: 5));
                 }
+
+                if (snap.hasError) {
+                  final errorText = snap.error.toString();
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.error_outline,
+                            color: AppColors.cancelRed,
+                            size: 40,
+                          ),
+                          const SizedBox(height: 12),
+                          const Text(
+                            'Failed to load users',
+                            style: TextStyle(
+                              color: AppColors.textDark,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 16,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            errorText,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: AppColors.textMedium,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }
+
                 var users = snap.data ?? [];
                 if (_search.isNotEmpty) {
                   users = users

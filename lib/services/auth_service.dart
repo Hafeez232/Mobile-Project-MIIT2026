@@ -52,7 +52,7 @@ class AuthService {
     return UserModel.fromMap(doc.data()!, uid);
   }
 
-  // Get current user model
+  // Get current user
   Future<UserModel?> getCurrentUserModel() async {
     if (currentUser == null) return null;
     return await getUserById(currentUser!.uid);

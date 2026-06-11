@@ -2,9 +2,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../models/menu_package.dart';
-import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common_widgets.dart';
+import '../../services/menu_service_supabase.dart';
 
 class SearchScreen extends StatefulWidget {
   final bool isAdmin;
@@ -16,23 +16,50 @@ class SearchScreen extends StatefulWidget {
 
 class _SearchScreenState extends State<SearchScreen> {
   final _ctrl = TextEditingController();
-  final _db = FirestoreService();
+  final _menuService = MenuService();
   List<MenuPackage> _results = [];
   bool _loading = false;
   bool _searched = false;
+  String? _errorText;
   String _filterCategory = 'All';
   final _categories = ['All', 'Western', 'Asian', 'Fusion', 'Local'];
 
   Future<void> _search(String q) async {
-    setState(() { _loading = true; _searched = true; });
-    final results = await _db.searchPackages(q);
-    if (mounted) {
+    final query = q.trim();
+    if (query.isEmpty) {
       setState(() {
-        _results = _filterCategory == 'All'
-            ? results
-            : results.where((p) => p.category == _filterCategory).toList();
+        _results = [];
+        _searched = false;
         _loading = false;
+        _errorText = null;
       });
+      return;
+    }
+
+    setState(() {
+      _loading = true;
+      _searched = true;
+      _errorText = null;
+    });
+
+    try {
+      final results = await _menuService.searchPackages(query);
+      if (mounted) {
+        setState(() {
+          _results = _filterCategory == 'All'
+              ? results
+              : results.where((p) => p.category == _filterCategory).toList();
+          _loading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _results = [];
+          _loading = false;
+          _errorText = e.toString();
+        });
+      }
     }
   }
 
@@ -59,7 +86,11 @@ class _SearchScreenState extends State<SearchScreen> {
               icon: const Icon(Icons.clear),
               onPressed: () {
                 _ctrl.clear();
-                setState(() { _results = []; _searched = false; });
+                setState(() {
+                  _results = [];
+                  _searched = false;
+                  _errorText = null;
+                });
               },
             ),
           IconButton(
@@ -121,6 +152,32 @@ class _SearchScreenState extends State<SearchScreen> {
                 ? const Padding(
                     padding: EdgeInsets.all(16),
                     child: ShimmerList(count: 4))
+                : _errorText != null
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.error_outline,
+                                  size: 44, color: AppColors.cancelRed),
+                              const SizedBox(height: 12),
+                              const Text('Search failed',
+                                  style: TextStyle(
+                                      color: AppColors.textDark,
+                                      fontWeight: FontWeight.w700)),
+                              const SizedBox(height: 8),
+                              Text(
+                                _errorText!,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                    color: AppColors.textMedium,
+                                    fontSize: 12),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
                 : !_searched
                     ? Center(
                         child: Column(
@@ -139,28 +196,28 @@ class _SearchScreenState extends State<SearchScreen> {
                       )
                     : _results.isEmpty
                         ? Center(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.search_off,
-                                    size: 60,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.search_off,
+                    size: 60,
                                     color: AppColors.textLight
                                         .withOpacity(0.5)),
-                                const SizedBox(height: 10),
-                                const Text('No packages found',
-                                    style: TextStyle(
-                                        color: AppColors.textLight,
-                                        fontSize: 15)),
-                              ],
-                            ),
-                          )
+                const SizedBox(height: 10),
+                const Text('No packages found',
+                    style: TextStyle(
+                        color: AppColors.textLight,
+                        fontSize: 15)),
+              ],
+            ),
+          )
                         : GridView.builder(
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 16, vertical: 8),
                             gridDelegate:
                                 const SliverGridDelegateWithFixedCrossAxisCount(
                               crossAxisCount: 2,
-                              childAspectRatio: 0.78,
+                              childAspectRatio: 0.72,
                               crossAxisSpacing: 12,
                               mainAxisSpacing: 12,
                             ),

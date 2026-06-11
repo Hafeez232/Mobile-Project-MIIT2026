@@ -13,6 +13,8 @@ import '../screens/user/booking_form_screen.dart';
 import '../screens/user/booking_confirm_screen.dart';
 import '../screens/user/booking_success_screen.dart';
 import '../screens/user/my_reservations_screen.dart';
+import '../screens/user/notifications_screen.dart';
+import '../screens/user/payment_cards_screen.dart';
 import '../screens/user/reservation_detail_screen.dart';
 import '../screens/user/profile_screen.dart';
 import '../screens/user/search_screen.dart';
@@ -72,7 +74,15 @@ final GoRouter appRouter = GoRouter(
     // ── User Routes ───────────────────────────────────────────────
     GoRoute(
       path: '/home',
-      builder: (context, state) => const UserHomeScreen(),
+      builder: (context, state) {
+        final tab = state.uri.queryParameters['tab'];
+        final initialIndex = switch (tab) {
+          'bookings' => 1,
+          'profile' => 2,
+          _ => 0,
+        };
+        return UserHomeScreen(initialIndex: initialIndex);
+      },
       routes: [
         GoRoute(
           path: 'package/:id',
@@ -86,9 +96,24 @@ final GoRouter appRouter = GoRouter(
           builder: (context, state) => const SearchScreen(),
         ),
         GoRoute(
+          path: 'notifications',
+          builder: (context, state) => const NotificationsScreen(),
+        ),
+        GoRoute(
+          path: 'payment-cards',
+          builder: (context, state) => const PaymentCardsScreen(),
+        ),
+        GoRoute(
           path: 'book',
           builder: (context, state) {
-            final pkg = state.extra as MenuPackage;
+            final extra = state.extra;
+            if (extra is Map<String, dynamic>) {
+              return BookingFormScreen(
+                package: extra['package'] as MenuPackage,
+                reservation: extra['reservation'] as Reservation?,
+              );
+            }
+            final pkg = extra as MenuPackage;
             return BookingFormScreen(package: pkg);
           },
         ),
