@@ -46,7 +46,6 @@ final GoRouter appRouter = GoRouter(
     return null;
   },
   routes: [
-    // ── Guest Routes ──────────────────────────────────────────────
     GoRoute(
       path: '/guest',
       builder: (context, state) => const GuestHomeScreen(),
@@ -60,8 +59,7 @@ final GoRouter appRouter = GoRouter(
         ),
       ],
     ),
-
-    // ── Auth Routes ───────────────────────────────────────────────
+    
     GoRoute(
       path: '/auth/login',
       builder: (context, state) => const LoginScreen(),
@@ -71,7 +69,6 @@ final GoRouter appRouter = GoRouter(
       builder: (context, state) => const RegisterScreen(),
     ),
 
-    // ── User Routes ───────────────────────────────────────────────
     GoRoute(
       path: '/home',
       builder: (context, state) {
@@ -151,7 +148,6 @@ final GoRouter appRouter = GoRouter(
       ],
     ),
 
-    // ── Admin Routes ──────────────────────────────────────────────
     GoRoute(
       path: '/admin',
       builder: (context, state) => const AdminHomeScreen(),
